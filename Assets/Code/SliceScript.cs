@@ -98,16 +98,21 @@ public class SliceScript : MonoBehaviour
         }
     }
 
+    void AddTriangle(Mesh mesh, ChangeableMesh cMesh, int i1, int i2, int i3)
+    {
+        cMesh.vertices.Add(mesh.vertices[i1]);
+        cMesh.vertices.Add(mesh.vertices[i2]);
+        cMesh.vertices.Add(mesh.vertices[i3]);
+
+        cMesh.triangles.Add(cMesh.vertices.Count - 3);
+        cMesh.triangles.Add(cMesh.vertices.Count - 2);
+        cMesh.triangles.Add(cMesh.vertices.Count - 1);
+    }
+
     (Mesh, Mesh) CreateMeshes(Mesh mesh)
     {
-        var triangles1 = new List<int>();
-        var vertices1 = new List<Vector3>();
-
-        var triangles2 = new List<int>();
-        var vertices2 = new List<Vector3>();
-
-        List<int> trianglesToAdd;
-        List<Vector3> verticesToAdd;
+        var cMesh1 = new ChangeableMesh();
+        var cMesh2 = new ChangeableMesh();
 
         for (int i = 0; i < mesh.triangles.Length; i += 3)
         {
@@ -117,36 +122,25 @@ public class SliceScript : MonoBehaviour
 
             if (vertexValues[i1] > 0 && vertexValues[i2] > 0 && vertexValues[i3] > 0)
             {
-                verticesToAdd = vertices1;
-                trianglesToAdd = triangles1;
+                AddTriangle(mesh, cMesh1, i1, i2, i3);
             }
             else if (vertexValues[i1] < 0 && vertexValues[i2] < 0 && vertexValues[i3] < 0)
             {
-                verticesToAdd = vertices2;
-                trianglesToAdd = triangles2;
+                AddTriangle(mesh, cMesh2, i1, i2, i3);
             }
             else  // triangle is intersected
             {
-                SliceTriangle(mesh, i, i1, i2, i3, triangles1, vertices1, triangles2, vertices2);
-                continue;
+                SliceTriangle(mesh, i, i1, i2, i3, cMesh1.triangles, cMesh1.vertices, cMesh2.triangles, cMesh2.vertices);
             }
-
-            verticesToAdd.Add(mesh.vertices[i1]);
-            verticesToAdd.Add(mesh.vertices[i2]);
-            verticesToAdd.Add(mesh.vertices[i3]);
-
-            trianglesToAdd.Add(verticesToAdd.Count - 3);
-            trianglesToAdd.Add(verticesToAdd.Count - 2);
-            trianglesToAdd.Add(verticesToAdd.Count - 1);
         }
 
         var mesh1 = new Mesh();
-        mesh1.vertices = vertices1.ToArray();
-        mesh1.triangles = triangles1.ToArray();
+        mesh1.vertices = cMesh1.vertices.ToArray();
+        mesh1.triangles = cMesh1.triangles.ToArray();
 
         var mesh2 = new Mesh();
-        mesh2.vertices = vertices2.ToArray();
-        mesh2.triangles = triangles2.ToArray();
+        mesh2.vertices = cMesh2.vertices.ToArray();
+        mesh2.triangles = cMesh2.triangles.ToArray();
 
         return (mesh1, mesh2);
     }
