@@ -75,6 +75,53 @@ public class SliceScript : MonoBehaviour
         }
     }
 
+    (Mesh, Mesh) SliceMesh(Mesh mesh, Transform meshTransform)
+    {
+        // FillLineToTrig(mesh);
+
+        lineToIntersection = new Dictionary<(int, int), Vector3>();
+
+        var normal = Vector3.Cross(
+            meshTransform.InverseTransformVector(slicer.up),
+            meshTransform.InverseTransformVector(slicer.right));
+        var planePoint = meshTransform.InverseTransformPoint(slicer.position);
+
+        CaclulateVetrexValues(normal, planePoint, mesh.vertices);
+
+        return CreateMeshes(mesh);
+    }
+
+    void FillLineToTrig(Mesh mesh)
+    {
+        lineToTrig = new Dictionary<(int, int), List<int>>();
+
+        for (int ind = 0; ind < mesh.triangles.Length; ind += 3)
+        {
+            var i1 = mesh.triangles[ind + 0];
+            var i2 = mesh.triangles[ind + 1];
+            var i3 = mesh.triangles[ind + 2];
+            AddToLineToTrig(Sorted(i1, i2), ind);
+            AddToLineToTrig(Sorted(i1, i3), ind);
+            AddToLineToTrig(Sorted(i2, i3), ind);
+        }
+    }
+
+    void AddToLineToTrig((int, int) key, int value)
+    {
+        List<int> collection;
+        if (!lineToTrig.TryGetValue(key, out collection))
+        {
+            collection = new List<int>();
+            lineToTrig.Add(key, collection);
+        }
+        collection.Add(value);
+    }
+
+    (int, int) Sorted(int a, int b)
+    {
+        return (Min(a, b), Max(a, b));
+    }
+
     void CaclulateVetrexValues(Vector3 normal, Vector3 planePoint, Vector3[] vertices)
     {
         vertexValues = new float[vertices.Length];
@@ -83,30 +130,6 @@ public class SliceScript : MonoBehaviour
         {
             vertexValues[i] = Vector3.Dot(vertices[i] - planePoint, normal);
         }
-    }
-
-    void AddVertex(Mesh mesh, ChangeableMesh cMesh, int i)
-    {
-        var vertex = mesh.vertices[mesh.triangles[i]];
-        var ind = cMesh.vertices.IndexOf(vertex);
-        if (ind != -1)
-            cMesh.triangles.Add(ind);
-        else
-        {
-            cMesh.vertices.Add(vertex);
-            cMesh.triangles.Add(cMesh.vertices.Count - 1);
-        }
-    }
-
-    void AddTriangle(Mesh mesh, ChangeableMesh cMesh, int i1, int i2, int i3)
-    {
-        cMesh.vertices.Add(mesh.vertices[i1]);
-        cMesh.vertices.Add(mesh.vertices[i2]);
-        cMesh.vertices.Add(mesh.vertices[i3]);
-
-        cMesh.triangles.Add(cMesh.vertices.Count - 3);
-        cMesh.triangles.Add(cMesh.vertices.Count - 2);
-        cMesh.triangles.Add(cMesh.vertices.Count - 1);
     }
 
     (Mesh, Mesh) CreateMeshes(Mesh mesh)
@@ -137,6 +160,17 @@ public class SliceScript : MonoBehaviour
         return (cMesh1.ToMesh(), cMesh2.ToMesh());
     }
 
+    void AddTriangle(Mesh mesh, ChangeableMesh cMesh, int i1, int i2, int i3)
+    {
+        cMesh.vertices.Add(mesh.vertices[i1]);
+        cMesh.vertices.Add(mesh.vertices[i2]);
+        cMesh.vertices.Add(mesh.vertices[i3]);
+
+        cMesh.triangles.Add(cMesh.vertices.Count - 3);
+        cMesh.triangles.Add(cMesh.vertices.Count - 2);
+        cMesh.triangles.Add(cMesh.vertices.Count - 1);
+    }
+
     void SliceTriangle(Mesh mesh, int i, int i1, int i2, int i3,
                        ChangeableMesh cMesh1, ChangeableMesh cMesh2)
     {
@@ -145,6 +179,7 @@ public class SliceScript : MonoBehaviour
 
         var (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i1, i2);
         if (succ) { points.Add(vec); indices.Add(1); }
+        // if (succ) lineToIntersection.Add(pair.Key, vec);
 
         (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i1, i3);
         if (succ) { points.Add(vec); indices.Add(3); }
@@ -226,38 +261,17 @@ public class SliceScript : MonoBehaviour
         }
     }
 
-    (Mesh, Mesh) SliceMesh(Mesh mesh, Transform meshTransform)
+    void AddVertex(Mesh mesh, ChangeableMesh cMesh, int i)
     {
-        // FillLineToTrig(mesh);
-
-        lineToIntersection = new Dictionary<(int, int), Vector3>();
-
-        var normal = Vector3.Cross(
-            meshTransform.InverseTransformVector(slicer.up),
-            meshTransform.InverseTransformVector(slicer.right));
-        var planePoint = meshTransform.InverseTransformPoint(slicer.position);
-
-        CaclulateVetrexValues(normal, planePoint, mesh.vertices);
-
-        return CreateMeshes(mesh);
-
-        /*foreach (var pair in lineToTrig)
+        var vertex = mesh.vertices[mesh.triangles[i]];
+        var ind = cMesh.vertices.IndexOf(vertex);
+        if (ind != -1)
+            cMesh.triangles.Add(ind);
+        else
         {
-            var (ind1, ind2) = pair.Key;
-            var (pt1, pt2) = (mesh.vertices[ind1], mesh.vertices[ind2]);
-
-            var (succ, vec, scalar) = LinePlaneIntersection(
-                normal, planePoint,
-                pt2 - pt1, pt1);
-
-            if (succ)
-                lineToIntersection.Add(pair.Key, vec);
+            cMesh.vertices.Add(vertex);
+            cMesh.triangles.Add(cMesh.vertices.Count - 1);
         }
-
-        for (int ind = 0; ind < mesh.triangles.Length; ind += 3)
-        {
-            SliceTriangle(mesh, ind);
-        }*/
     }
 
     (bool, Vector3, float) LinePlaneIntersectionByIndex(Vector3[] vertices, int i1, int i2)
@@ -295,36 +309,4 @@ public class SliceScript : MonoBehaviour
                 return (false, new Vector3(), scalar);
         }
     }
-
-    (int, int) Sorted(int a, int b)
-    {
-        return (Min(a, b), Max(a, b));
-    }
-
-    void AddToLineToTrig((int, int) key, int value)
-    {
-        List<int> collection;
-        if (!lineToTrig.TryGetValue(key, out collection))
-        {
-            collection = new List<int>();
-            lineToTrig.Add(key, collection);
-        }
-        collection.Add(value);
-    }
-
-    void FillLineToTrig(Mesh mesh)
-    {
-        lineToTrig = new Dictionary<(int, int), List<int>>();
-
-        for (int ind = 0; ind < mesh.triangles.Length; ind += 3)
-        {
-            var i1 = mesh.triangles[ind + 0];
-            var i2 = mesh.triangles[ind + 1];
-            var i3 = mesh.triangles[ind + 2];
-            AddToLineToTrig(Sorted(i1, i2), ind);
-            AddToLineToTrig(Sorted(i1, i3), ind);
-            AddToLineToTrig(Sorted(i2, i3), ind);
-        }
-    }
-
 }
