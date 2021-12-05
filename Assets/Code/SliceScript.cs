@@ -75,37 +75,6 @@ public class SliceScript : MonoBehaviour
         }
     }
 
-    (int, int) Sorted(int a, int b)
-    {
-        return (Min(a, b), Max(a, b));
-    }
-
-    void AddToLineToTrig((int, int) key, int value)
-    {
-        List<int> collection;
-        if (!lineToTrig.TryGetValue(key, out collection))
-        {
-            collection = new List<int>();
-            lineToTrig.Add(key, collection);
-        }
-        collection.Add(value);
-    }
-
-    void FillLineToTrig(Mesh mesh)
-    {
-        lineToTrig = new Dictionary<(int, int), List<int>>();
-
-        for (int ind = 0; ind < mesh.triangles.Length; ind += 3)
-        {
-            var i1 = mesh.triangles[ind + 0];
-            var i2 = mesh.triangles[ind + 1];
-            var i3 = mesh.triangles[ind + 2];
-            AddToLineToTrig(Sorted(i1, i2), ind);
-            AddToLineToTrig(Sorted(i1, i3), ind);
-            AddToLineToTrig(Sorted(i2, i3), ind);
-        }
-    }
-
     void CaclulateVetrexValues(Vector3 normal, Vector3 planePoint, Vector3[] vertices)
     {
         vertexValues = new float[vertices.Length];
@@ -358,4 +327,36 @@ public class SliceScript : MonoBehaviour
                 return (false, new Vector3(), scalar);
         }
     }
+
+    (int, int) Sorted(int a, int b)
+    {
+        return (Min(a, b), Max(a, b));
+    }
+
+    void AddToLineToTrig((int, int) key, int value)
+    {
+        List<int> collection;
+        if (!lineToTrig.TryGetValue(key, out collection))
+        {
+            collection = new List<int>();
+            lineToTrig.Add(key, collection);
+        }
+        collection.Add(value);
+    }
+
+    void FillLineToTrig(Mesh mesh)
+    {
+        lineToTrig = new Dictionary<(int, int), List<int>>();
+
+        for (int ind = 0; ind < mesh.triangles.Length; ind += 3)
+        {
+            var i1 = mesh.triangles[ind + 0];
+            var i2 = mesh.triangles[ind + 1];
+            var i3 = mesh.triangles[ind + 2];
+            AddToLineToTrig(Sorted(i1, i2), ind);
+            AddToLineToTrig(Sorted(i1, i3), ind);
+            AddToLineToTrig(Sorted(i2, i3), ind);
+        }
+    }
+
 }
