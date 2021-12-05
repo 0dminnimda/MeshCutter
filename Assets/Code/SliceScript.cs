@@ -19,11 +19,11 @@ public class SliceScript : MonoBehaviour
 
     float[] vertexValues;
 
-    static Dictionary<(int, int), int> sideToInd = new Dictionary<(int, int), int>
+    static Dictionary<int, int> sideToInd = new Dictionary<int, int>
     {
-        {(1, 2), 1}, {(2, 1), 1},
-        {(1, 3), 0}, {(3, 1), 0},
-        {(2, 3), 2}, {(3, 2), 2},
+        {3, 1},  // 1, 2 -> 1
+        {4, 0},  // 1, 3 -> 0
+        {5, 2},  // 2, 3 -> 2
     };
 
     void Start()
@@ -52,18 +52,10 @@ public class SliceScript : MonoBehaviour
             var (mesh1, mesh2) = SliceMesh(mesh, t);
             var obj = slicees[i];
 
-            // Debug.LogFormat("mesh1: {0}, mesh2: {1}", mesh1.vertices.Length, mesh2.vertices.Length);
-
             t = obj.GetComponentInParent<Transform>();
 
             if (t == null || t.gameObject == obj)
             {
-                /*var obj1 = Instantiate(obj, obj.transform, true);
-                obj1.GetComponent<MeshFilter>().mesh = mesh1;
-
-                var obj2 = Instantiate(obj, obj.transform, true);
-                obj2.GetComponent<MeshFilter>().mesh = mesh2;*/
-
                 var obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity);
                 obj1.GetComponent<MeshFilter>().mesh = mesh1;
 
@@ -114,7 +106,7 @@ public class SliceScript : MonoBehaviour
         }
     }
 
-    void CaclulateVerexValues(Vector3 normal, Vector3 planePoint, Vector3[] vertices)
+    void CaclulateVetrexValues(Vector3 normal, Vector3 planePoint, Vector3[] vertices)
     {
         vertexValues = new float[vertices.Length];
 
@@ -166,118 +158,7 @@ public class SliceScript : MonoBehaviour
             }
             else  // triangle is intersected
             {
-                var points = new List<Vector3>(2);
-                var indices = new List<int>(2);
-
-                var (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i1, i2);
-                if (succ) { points.Add(vec); indices.Add(1); }
-
-                (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i1, i3);
-                if (succ) { points.Add(vec); indices.Add(3); }
-
-                (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i2, i3);
-                if (succ) { points.Add(vec); indices.Add(2); }
-
-                Assert(points.Count == 2);
-                var (point1, point2) = (points[0], points[1]);
-
-                Assert(indices.Count == 2);
-                var (index1, index2) = (indices[0], indices[1]);
-
-                if (index2 < index1)
-                {
-                    (point1, point2) = (point2, point1);
-                    (index1, index2) = (index2, index1);
-                }
-
-                vertices1.Add(point1); vertices1.Add(point2);
-                vertices2.Add(point1); vertices2.Add(point2);
-
-                var trigInd = sideToInd[(index1, index2)];
-                // var trigInd2 = trigInd == 0 ? trigInd : trigInd + 1;
-
-                List<int> locTriangles1;
-                List<Vector3> locVertices1;
-
-                List<int> locTriangles2;
-                List<Vector3> locVertices2;
-
-                if (vertexValues[trigInd] > 0)
-                {
-                    locTriangles1 = triangles1;
-                    locVertices1 = vertices1;
-
-                    locTriangles2 = triangles2;
-                    locVertices2 = vertices2;
-                }
-                else
-                {
-                    locTriangles1 = triangles2;
-                    locVertices1 = vertices2;
-
-                    locTriangles2 = triangles1;
-                    locVertices2 = vertices1;
-                }
-
-                // triangle
-                switch (index1 + index2)
-                {
-                    case 3:  // 1, 2
-                        locTriangles1.Add(locVertices1.Count - 1);
-                        locTriangles1.Add(locVertices1.Count - 2);
-                        break;
-                    case 4:  // 1, 3
-                        locTriangles1.Add(locVertices1.Count - 2);
-                        locTriangles1.Add(locVertices1.Count - 1);
-                        break;
-                    case 5:  // 2, 3
-                        locTriangles1.Add(locVertices1.Count - 1);
-                        locTriangles1.Add(locVertices1.Count - 2);
-                        break;
-                }
-
-                AddVertex(mesh, locTriangles1, locVertices1, i + trigInd);
-
-                /*var vertex = mesh.vertices[mesh.triangles[i + trigInd]];
-                var ind = locVertices1.IndexOf(vertex);
-                if (ind != -1)
-                    locTriangles1.Add(ind);
-                else
-                {
-                    locVertices1.Add(vertex);
-                    locTriangles1.Add(locVertices1.Count - 1);
-                }*/
-
-                // two triangles
-                var (smol, bic) = (locVertices2.Count - 2, locVertices2.Count - 1);
-                switch (index1 + index2)
-                {
-                    case 3:  // 1, 2
-                        locTriangles2.Add(smol); locTriangles2.Add(bic);
-                        AddVertex(mesh, locTriangles2, locVertices2, i + 2);
-
-                        AddVertex(mesh, locTriangles2, locVertices2, i + 2);
-                        AddVertex(mesh, locTriangles2, locVertices2, i + 0);
-                        locTriangles2.Add(smol);
-                        break;
-                    case 4:  // 1, 3
-                        locTriangles2.Add(bic); locTriangles2.Add(smol);
-                        AddVertex(mesh, locTriangles2, locVertices2, i + 1);
-
-                        AddVertex(mesh, locTriangles2, locVertices2, i + 1);
-                        AddVertex(mesh, locTriangles2, locVertices2, i + 2);
-                        locTriangles2.Add(bic);
-                        break;
-                    case 5:  // 2, 3
-                        locTriangles2.Add(smol); locTriangles2.Add(bic);
-                        AddVertex(mesh, locTriangles2, locVertices2, i + 0);
-
-                        AddVertex(mesh, locTriangles2, locVertices2, i + 0);
-                        AddVertex(mesh, locTriangles2, locVertices2, i + 1);
-                        locTriangles2.Add(smol);
-                        break;
-                }
-
+                SliceTriangle(mesh, i, i1, i2, i3, triangles1, vertices1, triangles2, vertices2);
                 continue;
             }
 
@@ -301,6 +182,113 @@ public class SliceScript : MonoBehaviour
         return (mesh1, mesh2);
     }
 
+    private void SliceTriangle(
+        Mesh mesh, int i, int i1, int i2, int i3,
+        List<int> triangles1, List<Vector3> vertices1,
+        List<int> triangles2, List<Vector3> vertices2)
+    {
+        var points = new List<Vector3>(2);
+        var indices = new List<int>(2);
+
+        var (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i1, i2);
+        if (succ) { points.Add(vec); indices.Add(1); }
+
+        (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i1, i3);
+        if (succ) { points.Add(vec); indices.Add(3); }
+
+        (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i2, i3);
+        if (succ) { points.Add(vec); indices.Add(2); }
+
+        Assert(points.Count == 2);
+        var (point1, point2) = (points[0], points[1]);
+
+        Assert(indices.Count == 2);
+        var (index1, index2) = (indices[0], indices[1]);
+
+        if (index2 < index1)
+        {
+            (point1, point2) = (point2, point1);
+            (index1, index2) = (index2, index1);
+        }
+
+        vertices1.Add(point1); vertices1.Add(point2);
+        vertices2.Add(point1); vertices2.Add(point2);
+
+        List<int> locTriangles1;
+        List<Vector3> locVertices1;
+
+        List<int> locTriangles2;
+        List<Vector3> locVertices2;
+
+        var trigInd = i + sideToInd[index1 + index2];
+
+        if (vertexValues[mesh.triangles[trigInd]] > 0)
+        {
+            locTriangles1 = triangles1;
+            locVertices1 = vertices1;
+
+            locTriangles2 = triangles2;
+            locVertices2 = vertices2;
+        }
+        else
+        {
+            locTriangles1 = triangles2;
+            locVertices1 = vertices2;
+
+            locTriangles2 = triangles1;
+            locVertices2 = vertices1;
+        }
+
+        // triangle
+        switch (index1 + index2)
+        {
+            case 3:  // 1, 2
+                locTriangles1.Add(locVertices1.Count - 1);
+                locTriangles1.Add(locVertices1.Count - 2);
+                break;
+            case 4:  // 1, 3
+                locTriangles1.Add(locVertices1.Count - 2);
+                locTriangles1.Add(locVertices1.Count - 1);
+                break;
+            case 5:  // 2, 3
+                locTriangles1.Add(locVertices1.Count - 1);
+                locTriangles1.Add(locVertices1.Count - 2);
+                break;
+        }
+
+        AddVertex(mesh, locTriangles1, locVertices1, trigInd);
+
+        // two triangles
+        var (smol, bic) = (locVertices2.Count - 2, locVertices2.Count - 1);
+        switch (index1 + index2)
+        {
+            case 3:  // 1, 2
+                locTriangles2.Add(smol); locTriangles2.Add(bic);
+                AddVertex(mesh, locTriangles2, locVertices2, i + 2);
+
+                AddVertex(mesh, locTriangles2, locVertices2, i + 2);
+                AddVertex(mesh, locTriangles2, locVertices2, i + 0);
+                locTriangles2.Add(smol);
+                break;
+            case 4:  // 1, 3
+                locTriangles2.Add(bic); locTriangles2.Add(smol);
+                AddVertex(mesh, locTriangles2, locVertices2, i + 1);
+
+                AddVertex(mesh, locTriangles2, locVertices2, i + 1);
+                AddVertex(mesh, locTriangles2, locVertices2, i + 2);
+                locTriangles2.Add(bic);
+                break;
+            case 5:  // 2, 3
+                locTriangles2.Add(smol); locTriangles2.Add(bic);
+                AddVertex(mesh, locTriangles2, locVertices2, i + 0);
+
+                AddVertex(mesh, locTriangles2, locVertices2, i + 0);
+                AddVertex(mesh, locTriangles2, locVertices2, i + 1);
+                locTriangles2.Add(smol);
+                break;
+        }
+    }
+
     (Mesh, Mesh) SliceMesh(Mesh mesh, Transform meshTransform)
     {
         // FillLineToTrig(mesh);
@@ -312,7 +300,7 @@ public class SliceScript : MonoBehaviour
             meshTransform.InverseTransformVector(slicer.right));
         var planePoint = meshTransform.InverseTransformPoint(slicer.position);
 
-        CaclulateVerexValues(normal, planePoint, mesh.vertices);
+        CaclulateVetrexValues(normal, planePoint, mesh.vertices);
 
         return CreateMeshes(mesh);
 
@@ -334,35 +322,6 @@ public class SliceScript : MonoBehaviour
             SliceTriangle(mesh, ind);
         }*/
     }
-
-    void SliceTriangle(Mesh mesh, int i1, int i2, int i3)
-    {
-
-
-        /*var i1 = mesh.triangles[ind + 0];
-        var i2 = mesh.triangles[ind + 1];
-        var i3 = mesh.triangles[ind + 2];*/
-
-        /*var key1 = Sorted(i1, i2);
-        var key2 = Sorted(i1, i3);
-        var key3 = Sorted(i2, i3);*/
-
-        // TryGetValue
-        // mesh.vertices
-
-    }
-
-    /*(bool, Vector3, float) CachedLinePlaneIntersection(Vector3 normal, Vector3 planePoint, (int, int) key)
-    {
-        Vector3 result;
-        if (!lineToIntersection.TryGetValue(key, out result))
-        {
-            collection = new List<int>();
-            lineToTrig.Add(key, collection);
-        }
-        collection.Add(value);
-        
-    }*/
 
     (bool, Vector3, float) LinePlaneIntersectionByIndex(Vector3[] vertices, int i1, int i2)
     {
