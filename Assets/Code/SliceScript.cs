@@ -85,16 +85,16 @@ public class SliceScript : MonoBehaviour
         }
     }
 
-    void AddVertex(Mesh mesh, List<int> locTriangles, List<Vector3> locVertices, int i)
+    void AddVertex(Mesh mesh, ChangeableMesh cMesh, int i)
     {
         var vertex = mesh.vertices[mesh.triangles[i]];
-        var ind = locVertices.IndexOf(vertex);
+        var ind = cMesh.vertices.IndexOf(vertex);
         if (ind != -1)
-            locTriangles.Add(ind);
+            cMesh.triangles.Add(ind);
         else
         {
-            locVertices.Add(vertex);
-            locTriangles.Add(locVertices.Count - 1);
+            cMesh.vertices.Add(vertex);
+            cMesh.triangles.Add(cMesh.vertices.Count - 1);
         }
     }
 
@@ -130,7 +130,7 @@ public class SliceScript : MonoBehaviour
             }
             else  // triangle is intersected
             {
-                SliceTriangle(mesh, i, i1, i2, i3, cMesh1.triangles, cMesh1.vertices, cMesh2.triangles, cMesh2.vertices);
+                SliceTriangle(mesh, i, i1, i2, i3, cMesh1, cMesh2);
             }
         }
 
@@ -145,10 +145,8 @@ public class SliceScript : MonoBehaviour
         return (mesh1, mesh2);
     }
 
-    private void SliceTriangle(
-        Mesh mesh, int i, int i1, int i2, int i3,
-        List<int> triangles1, List<Vector3> vertices1,
-        List<int> triangles2, List<Vector3> vertices2)
+    void SliceTriangle(Mesh mesh, int i, int i1, int i2, int i3,
+                       ChangeableMesh cMesh1, ChangeableMesh cMesh2)
     {
         var points = new List<Vector3>(2);
         var indices = new List<int>(2);
@@ -174,80 +172,64 @@ public class SliceScript : MonoBehaviour
             (index1, index2) = (index2, index1);
         }
 
-        vertices1.Add(point1); vertices1.Add(point2);
-        vertices2.Add(point1); vertices2.Add(point2);
-
-        List<int> locTriangles1;
-        List<Vector3> locVertices1;
-
-        List<int> locTriangles2;
-        List<Vector3> locVertices2;
+        cMesh1.vertices.Add(point1); cMesh1.vertices.Add(point2);
+        cMesh2.vertices.Add(point1); cMesh2.vertices.Add(point2);
 
         var trigInd = i + sideToInd[index1 + index2];
 
-        if (vertexValues[mesh.triangles[trigInd]] > 0)
-        {
-            locTriangles1 = triangles1;
-            locVertices1 = vertices1;
+        var locCMesh1 = cMesh1; var locCMesh2 = cMesh2;
+        if (vertexValues[mesh.triangles[trigInd]] < 0)
+            (locCMesh1, locCMesh2) = (locCMesh2, locCMesh1);
 
-            locTriangles2 = triangles2;
-            locVertices2 = vertices2;
-        }
-        else
-        {
-            locTriangles1 = triangles2;
-            locVertices1 = vertices2;
-
-            locTriangles2 = triangles1;
-            locVertices2 = vertices1;
-        }
-
-        // triangle
+        // one triangle
+        var (smol, bic) = (locCMesh1.vertices.Count - 2, locCMesh1.vertices.Count - 1);
         switch (index1 + index2)
         {
             case 3:  // 1, 2
-                locTriangles1.Add(locVertices1.Count - 1);
-                locTriangles1.Add(locVertices1.Count - 2);
+                locCMesh1.triangles.Add(bic);
+                locCMesh1.triangles.Add(smol);
                 break;
             case 4:  // 1, 3
-                locTriangles1.Add(locVertices1.Count - 2);
-                locTriangles1.Add(locVertices1.Count - 1);
+                locCMesh1.triangles.Add(smol);
+                locCMesh1.triangles.Add(bic);
                 break;
             case 5:  // 2, 3
-                locTriangles1.Add(locVertices1.Count - 1);
-                locTriangles1.Add(locVertices1.Count - 2);
+                locCMesh1.triangles.Add(bic);
+                locCMesh1.triangles.Add(smol);
                 break;
         }
-
-        AddVertex(mesh, locTriangles1, locVertices1, trigInd);
+        AddVertex(mesh, locCMesh1, trigInd);
 
         // two triangles
-        var (smol, bic) = (locVertices2.Count - 2, locVertices2.Count - 1);
+        (smol, bic) = (locCMesh2.vertices.Count - 2, locCMesh2.vertices.Count - 1);
         switch (index1 + index2)
         {
             case 3:  // 1, 2
-                locTriangles2.Add(smol); locTriangles2.Add(bic);
-                AddVertex(mesh, locTriangles2, locVertices2, i + 2);
+                locCMesh2.triangles.Add(smol);
+                locCMesh2.triangles.Add(bic);
+                AddVertex(mesh, locCMesh2, i + 2);
 
-                AddVertex(mesh, locTriangles2, locVertices2, i + 2);
-                AddVertex(mesh, locTriangles2, locVertices2, i + 0);
-                locTriangles2.Add(smol);
+                AddVertex(mesh, locCMesh2, i + 2);
+                AddVertex(mesh, locCMesh2, i + 0);
+                locCMesh2.triangles.Add(smol);
                 break;
             case 4:  // 1, 3
-                locTriangles2.Add(bic); locTriangles2.Add(smol);
-                AddVertex(mesh, locTriangles2, locVertices2, i + 1);
+                locCMesh2.triangles.Add(bic);
+                locCMesh2.triangles.Add(smol);
+                AddVertex(mesh, locCMesh2, i + 1);
 
-                AddVertex(mesh, locTriangles2, locVertices2, i + 1);
-                AddVertex(mesh, locTriangles2, locVertices2, i + 2);
-                locTriangles2.Add(bic);
+                AddVertex(mesh, locCMesh2, i + 1);
+                AddVertex(mesh, locCMesh2, i + 2);
+                locCMesh2.triangles.Add(bic);
                 break;
             case 5:  // 2, 3
-                locTriangles2.Add(smol); locTriangles2.Add(bic);
-                AddVertex(mesh, locTriangles2, locVertices2, i + 0);
+                locCMesh2.triangles.Add(smol);
+                locCMesh2.triangles.Add(bic);
+                AddVertex(mesh, locCMesh2, i + 0);
 
-                AddVertex(mesh, locTriangles2, locVertices2, i + 0);
-                AddVertex(mesh, locTriangles2, locVertices2, i + 1);
-                locTriangles2.Add(smol);
+                AddVertex(mesh, locCMesh2, i + 0);
+                AddVertex(mesh, locCMesh2, i + 1);
+                locCMesh2.triangles.Add(smol);
                 break;
         }
     }
