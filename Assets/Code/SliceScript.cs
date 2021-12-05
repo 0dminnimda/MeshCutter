@@ -1,8 +1,10 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using static System.Math;
 using static System.Diagnostics.Debug;
+using System;
 
 public class SliceScript : MonoBehaviour
 {
@@ -105,7 +107,7 @@ public class SliceScript : MonoBehaviour
     }
 
 
-    void FillLineToTrig(Mesh mesh)
+    /*void FillLineToTrig(Mesh mesh)
     {
         lineToTrig = new Dictionary<(int, int), List<int>>();
 
@@ -118,24 +120,7 @@ public class SliceScript : MonoBehaviour
             AddToLineToTrig(Sorted(i1, i3), ind);
             AddToLineToTrig(Sorted(i2, i3), ind);
         }
-    }
-
-    void AddToLineToTrig((int, int) key, int value)
-    {
-        List<int> collection;
-        if (!lineToTrig.TryGetValue(key, out collection))
-        {
-            collection = new List<int>();
-            lineToTrig.Add(key, collection);
-        }
-        collection.Add(value);
-    }
-
-    (int, int) Sorted(int a, int b)
-    {
-        return (Min(a, b), Max(a, b));
-    }
-
+    }*/
 
     void CaclulateVetrexValues(Vector3 normal, Vector3 planePoint, Vector3[] vertices)
     {
@@ -152,6 +137,8 @@ public class SliceScript : MonoBehaviour
     {
         var cMesh1 = new ChangeableMesh();
         var cMesh2 = new ChangeableMesh();
+
+        lineToTrig = new Dictionary<(int, int), List<int>>();
 
         for (int i = 0; i < mesh.triangles.Length; i += 3)
         {
@@ -170,8 +157,14 @@ public class SliceScript : MonoBehaviour
             else  // triangle is intersected
             {
                 SliceTriangle(mesh, i, i1, i2, i3, cMesh1, cMesh2);
+
+                AddToLineToTrig(Sorted(i1, i2), i);
+                AddToLineToTrig(Sorted(i1, i3), i);
+                AddToLineToTrig(Sorted(i2, i3), i);
             }
         }
+
+        AddIntercestion(mesh, cMesh1, cMesh2);
 
         return (cMesh1.ToMesh(), cMesh2.ToMesh());
     }
@@ -193,14 +186,13 @@ public class SliceScript : MonoBehaviour
         var points = new List<Vector3>(2);
         var indices = new List<int>(2);
 
-        var (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i1, i2);
+        var (succ, vec) = CachedLinePlaneIntersectionByIndex(mesh.vertices, i1, i2);
         if (succ) { points.Add(vec); indices.Add(1); }
-        // if (succ) lineToIntersection.Add(pair.Key, vec);
 
-        (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i1, i3);
+        (succ, vec) = CachedLinePlaneIntersectionByIndex(mesh.vertices, i1, i3);
         if (succ) { points.Add(vec); indices.Add(3); }
 
-        (succ, vec, scalar) = LinePlaneIntersectionByIndex(mesh.vertices, i2, i3);
+        (succ, vec) = CachedLinePlaneIntersectionByIndex(mesh.vertices, i2, i3);
         if (succ) { points.Add(vec); indices.Add(2); }
 
         Assert(points.Count == 2);
@@ -290,40 +282,180 @@ public class SliceScript : MonoBehaviour
         }
     }
 
+    void AddToLineToTrig((int, int) key, int value)
+    {
+        List<int> collection;
+        if (!lineToTrig.TryGetValue(key, out collection))
+        {
+            collection = new List<int>();
+            lineToTrig.Add(key, collection);
+        }
+        collection.Add(value);
+    }
 
-    (bool, Vector3, float) LinePlaneIntersectionByIndex(Vector3[] vertices, int i1, int i2)
+    (int, int) Sorted(int a, int b)
+    {
+        return (Min(a, b), Max(a, b));
+    }
+
+    List<Vector3> points = new List<Vector3>();
+
+    void AddIntercestion(Mesh mesh, ChangeableMesh cMesh1, ChangeableMesh cMesh2)
+    {
+        var orderedIntersections = new Dictionary<(int, int), Vector3>(lineToIntersection.Count);
+
+        var pair = lineToIntersection.ElementAt(0);
+        var key = pair.Key;
+        var val = pair.Value;
+        /*orderedIntersections.Add(key, pair.Value);*/
+        // var visitedTriangles = new HashSet<int>();
+
+        // (int, int) key;
+
+        // var cnt = lineToIntersection.Count;
+        while (true)  // (orderedIntersections.Count != cnt)
+        {
+            var trigInd = NewTriangle(key);
+            if (trigInd == -1)
+            {
+                trigInd = NewTriangle(FindClosestPoint(val, key));
+                Assert(trigInd != -1);
+                Debug.Log(trigInd);
+            }
+
+            var i1 = mesh.triangles[trigInd + 0];
+            var i2 = mesh.triangles[trigInd + 1];
+            var i3 = mesh.triangles[trigInd + 2];
+
+            (int, int)[] keys = { Sorted(i1, i2), Sorted(i1, i3), Sorted(i2, i3) };
+
+            var added = false;
+            foreach (var _key in keys)
+            {
+                key = _key;
+                //  !orderedIntersections.ContainsKey(key) &&
+                if (lineToIntersection.TryGetValue(key, out val))
+                {
+                    orderedIntersections.Add(key, val);
+                    lineToIntersection.Remove(key);
+                    added = true;
+                    break;
+                }
+            }
+
+            if (lineToIntersection.Count == 0)  // (orderedIntersections.Count == cnt)
+                break;
+
+            // Assert(added == 0 || added == 1);
+            /*if (added == 0)
+            {
+                FindClosestPoint(val)
+            }*/
+
+        }
+
+        points = new List<Vector3>(orderedIntersections.Count);
+        foreach (var _pair in orderedIntersections)
+        {
+            points.Add(_pair.Value);
+        }
+    }
+
+    void OnDrawGizmos()
+    {
+        Gizmos.color = Color.red;
+        var radius = 0.1f;
+        foreach (var vert in points)
+            Gizmos.DrawWireSphere(transform.TransformPoint(vert), radius);
+    }
+
+    int NewTriangle((int, int) key)
+    {
+        List<int> val;
+        if (lineToTrig.TryGetValue(key, out val))
+        {
+            Assert(val.Count != 0);
+            var triangle = val[0];
+            val.RemoveAt(0);
+            if (val.Count == 0)
+            {
+                lineToTrig.Remove(key);
+            }
+            return triangle;
+        }
+        return -1;
+    }
+
+    (int, int) FindClosestPoint(Vector3 point, (int, int) key)
+    {
+        var closest = (-1, -1);
+
+        if (lineToIntersection.Count > 0) {
+            var dist = Double.PositiveInfinity;
+
+            foreach (var pair in lineToIntersection)
+            {
+                if (Vector3.Distance(point, pair.Value) < dist)
+                {
+                    if (pair.Key != key)
+                        closest = pair.Key;
+                }
+            }
+        }
+
+        return closest;
+    }
+
+
+    (bool, Vector3) CachedLinePlaneIntersectionByIndex(Vector3[] vertices, int i1, int i2)
+    {
+        var key = (i1, i2);
+        Vector3 val;
+
+        if (!lineToIntersection.TryGetValue(key, out val))
+        {
+            var (succ, vec) = LinePlaneIntersectionByIndex(vertices, i1, i2);
+            if (succ)
+                lineToIntersection.Add(key, vec);
+            return (succ, vec);
+        }
+        return (true, val);
+    }
+
+    (bool, Vector3) LinePlaneIntersectionByIndex(Vector3[] vertices, int i1, int i2)
     {
         var dt = vertexValues[i2] - vertexValues[i1];
         if (dt == 0)  // paralel
         {
-            return (false, new Vector3(), 0);
+            return (false, new Vector3());
         }
         else
         {
             var scalar = -vertexValues[i1] / dt;
 
             if (0 <= scalar && scalar <= 1)  // point on segment
-                return (true, vertices[i1] + (vertices[i2] - vertices[i1]) * scalar, scalar);
+                return (true, vertices[i1] + (vertices[i2] - vertices[i1]) * scalar);
             else  // point on line
-                return (false, new Vector3(), scalar);
+                return (false, new Vector3());
         }
     }
 
-    (bool, Vector3, float) LinePlaneIntersection(Vector3 normal, Vector3 planePoint, Vector3 direction, Vector3 linePoint)
+    (bool, Vector3) LinePlaneIntersection(Vector3 normal, Vector3 planePoint,
+                                          Vector3 direction, Vector3 linePoint)
     {
         var dt = Vector3.Dot(direction, normal);
         if (dt == 0)  // paralel
         {
-            return (false, new Vector3(), 0);
+            return (false, new Vector3());
         }
         else
         {
             var scalar = Vector3.Dot(planePoint - linePoint, normal) / dt;
 
             if (0 <= scalar && scalar <= 1)  // point on segment
-                return (true, linePoint + direction * scalar, scalar);
+                return (true, linePoint + direction * scalar);
             else  // point on line
-                return (false, new Vector3(), scalar);
+                return (false, new Vector3());
         }
     }
 }
