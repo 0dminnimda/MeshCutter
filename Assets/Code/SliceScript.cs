@@ -10,9 +10,7 @@ public class SliceScript : MonoBehaviour
     Transform slicer;
 
     [SerializeField]
-    GameObject[] slicees;
-
-    (Mesh, Transform)[] data;
+    List<GameObject> slicees;
 
     Dictionary<(int, int), List<int>> lineToTrig;
     Dictionary<(int, int), Vector3> lineToIntersection;
@@ -28,12 +26,6 @@ public class SliceScript : MonoBehaviour
 
     void Start()
     {
-        data = new (Mesh, Transform)[slicees.Length];
-        for (int i = 0; i < slicees.Length; i++)
-        {
-            var obj = slicees[i];
-            data[i] = (obj.GetComponent<MeshFilter>().mesh, obj.GetComponent<Transform>());
-        }
     }
 
     void Update()
@@ -46,33 +38,55 @@ public class SliceScript : MonoBehaviour
 
     void Slice()
     {
-        for (int i = 0; i < data.Length; i++)
+        var indicesToRemove = new List<int>();
+
+        for (int i = slicees.Count - 1; i >= 0; i--)
         {
-            var (mesh, t) = data[i];
-            var (mesh1, mesh2) = SliceMesh(mesh, t);
             var obj = slicees[i];
+            var mf = obj.GetComponent<MeshFilter>();
+            var t = obj.GetComponent<Transform>();
 
-            t = obj.GetComponentInParent<Transform>();
-
-            if (t == null || t.gameObject == obj)
+            if (mf != null && t != null)
             {
-                var obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity);
-                obj1.GetComponent<MeshFilter>().mesh = mesh1;
-
-                var obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity);
-                obj2.GetComponent<MeshFilter>().mesh = mesh2;
+                SliceGameObject(obj, t, mf.mesh);
+                indicesToRemove.Add(i);
             }
-            else
-            {
-                var obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
-                obj1.GetComponent<MeshFilter>().mesh = mesh1;
-
-                var obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
-                obj2.GetComponent<MeshFilter>().mesh = mesh2;
-            }
-
-            Destroy(obj);
         }
+
+        foreach (var i in indicesToRemove)
+        {
+            slicees.RemoveAt(i);
+        }
+    }
+
+    void SliceGameObject(GameObject obj, Transform objTransform, Mesh objMesh)
+    {
+        var (mesh1, mesh2) = SliceMesh(objMesh, objTransform);
+        var t = obj.GetComponentInParent<Transform>();
+
+        GameObject obj1, obj2;
+
+        if (t == null || t.gameObject == obj)
+        {
+            obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity);
+            obj1.GetComponent<MeshFilter>().mesh = mesh1;
+
+            obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity);
+            obj2.GetComponent<MeshFilter>().mesh = mesh2;
+        }
+        else
+        {
+            obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
+            obj1.GetComponent<MeshFilter>().mesh = mesh1;
+
+            obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
+            obj2.GetComponent<MeshFilter>().mesh = mesh2;
+        }
+
+        slicees.Add(obj1);
+        slicees.Add(obj2);
+
+        Destroy(obj);
     }
 
     (Mesh, Mesh) SliceMesh(Mesh mesh, Transform meshTransform)
@@ -90,6 +104,7 @@ public class SliceScript : MonoBehaviour
 
         return CreateMeshes(mesh);
     }
+
 
     void FillLineToTrig(Mesh mesh)
     {
@@ -122,6 +137,7 @@ public class SliceScript : MonoBehaviour
         return (Min(a, b), Max(a, b));
     }
 
+
     void CaclulateVetrexValues(Vector3 normal, Vector3 planePoint, Vector3[] vertices)
     {
         vertexValues = new float[vertices.Length];
@@ -131,6 +147,7 @@ public class SliceScript : MonoBehaviour
             vertexValues[i] = Vector3.Dot(vertices[i] - planePoint, normal);
         }
     }
+
 
     (Mesh, Mesh) CreateMeshes(Mesh mesh)
     {
@@ -273,6 +290,7 @@ public class SliceScript : MonoBehaviour
             cMesh.triangles.Add(cMesh.vertices.Count - 1);
         }
     }
+
 
     (bool, Vector3, float) LinePlaneIntersectionByIndex(Vector3[] vertices, int i1, int i2)
     {
