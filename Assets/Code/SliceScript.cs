@@ -62,11 +62,10 @@ public class SliceScript : MonoBehaviour
     void SliceGameObject(GameObject obj, Transform objTransform, Mesh objMesh)
     {
         var (mesh1, mesh2) = SliceMesh(objMesh, objTransform);
-        var t = obj.GetComponentInParent<Transform>();
-
+        var t = objTransform.parent;
         GameObject obj1, obj2;
 
-        if (t == null || t.gameObject == obj)
+        if (t == null)
         {
             obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity);
             obj1.GetComponent<MeshFilter>().mesh = mesh1;
