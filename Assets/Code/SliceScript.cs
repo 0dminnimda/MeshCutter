@@ -134,15 +134,7 @@ public class SliceScript : MonoBehaviour
             }
         }
 
-        var mesh1 = new Mesh();
-        mesh1.vertices = cMesh1.vertices.ToArray();
-        mesh1.triangles = cMesh1.triangles.ToArray();
-
-        var mesh2 = new Mesh();
-        mesh2.vertices = cMesh2.vertices.ToArray();
-        mesh2.triangles = cMesh2.triangles.ToArray();
-
-        return (mesh1, mesh2);
+        return (cMesh1.ToMesh(), cMesh2.ToMesh());
     }
 
     void SliceTriangle(Mesh mesh, int i, int i1, int i2, int i3,

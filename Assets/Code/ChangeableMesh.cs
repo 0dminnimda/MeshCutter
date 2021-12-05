@@ -17,4 +17,14 @@ public class ChangeableMesh
         this.triangles = triangles;
         this.normals = normals;
     }
+
+    public Mesh ToMesh()
+    {
+        var mesh = new Mesh();
+        mesh.vertices = vertices.ToArray();
+        mesh.triangles = triangles.ToArray();
+        mesh.normals = normals.ToArray();
+
+        return mesh;
+    }
 }
