@@ -305,54 +305,19 @@ public class SliceScript : MonoBehaviour
         return (Min(a, b), Max(a, b));
     }
 
-    List<Vector3> points = new List<Vector3>();
-
-    Dictionary<(int, int), Vector3> orderedIntersections = new Dictionary<(int, int), Vector3>();
-    List<(int, int)> lines;
-    (int, int) key;
-
     void AddIntercestion(Mesh mesh, ChangeableMesh cMesh1, ChangeableMesh cMesh2)
     {
-        orderedIntersections = lineToIntersection.ToDictionary(
+        var lineToIntersectionClone = lineToIntersection.ToDictionary(
             entry => entry.Key, entry => entry.Value);
 
-        lines = new List<(int, int)>(orderedIntersections.Count);
-        SetKey(lineToIntersection.ElementAt(0).Key);
+        var lines = new List<(int, int)>(lineToIntersectionClone.Count);
+        var key = SetKey(lineToIntersection.ElementAt(0).Key, lines, lineToIntersectionClone);
 
-        List<int> lst;
-        while (orderedIntersections.Count != 0)
+        // get sorted intersection points
+        while (lineToIntersectionClone.Count != 0)
         {
             // get trigInd
-            var trigInd = -1;
-            if (lineToTrig.TryGetValue(key, out lst))
-            {
-                trigInd = lst[0];
-                if (lst.Count == 1)
-                    lineToTrig.Remove(key);
-                else
-                    lst.RemoveAt(0);
-            }
-            else
-            {
-                SetKey(FindClosestPoint(key));
-
-                if (lineToTrig.TryGetValue(key, out lst))
-                {
-                    trigInd = lst[0];
-                    if (lst.Count == 1)
-                        lineToTrig.Remove(key);
-                    else
-                        lst.RemoveAt(0);
-                }
-                else
-                {
-                    Debug.LogError("Shold be unreachable, new key don't have any " +
-                                   "connected triangles left, it was triangleless already");
-                    throw new InvalidOperationException();
-                }
-                // Debug.LogError("Shold be unreachable, new key don't have any connected triangles left");
-            }
-
+            var trigInd = NewTriangle(key, lines, lineToIntersectionClone);
             if (trigInd == -1)
             {
                 Debug.LogError("Shold be unreachable, trigInd wasn't set");
@@ -370,7 +335,7 @@ public class SliceScript : MonoBehaviour
             var gathered = false;
             foreach (var potentialKey in keys)
             {
-                if (orderedIntersections.ContainsKey(potentialKey))
+                if (lineToIntersectionClone.ContainsKey(potentialKey))
                 {
                     if (gathered)
                     {
@@ -378,9 +343,9 @@ public class SliceScript : MonoBehaviour
                     }
                     else
                     {
-                        key = potentialKey;
+                        key = SetKey(potentialKey, lines, lineToIntersectionClone);
                         lines.Add(key);
-                        orderedIntersections.Remove(key);
+                        lineToIntersectionClone.Remove(key);
                         gathered = true;
                     }
                 }
@@ -394,51 +359,61 @@ public class SliceScript : MonoBehaviour
             }*/
         }
 
-        points = new List<Vector3>(lines.Count);
+        // world Vector3 -> plane Vector2
+
+
+        // create cross-section mesh
+        var points = new List<Vector3>(lines.Count);
         foreach (var line in lines)
         {
             points.Add(lineToIntersection[line] + slicees[0].transform.position);
         }
     }
 
-    void SetKey((int, int) keyValue)
+    (int, int) SetKey((int, int) key, List<(int, int)> lines,
+                      Dictionary<(int, int), Vector3> lineToIntersectionClone)
     {
-        key = keyValue;
         lines.Add(key);
-        orderedIntersections.Remove(key);
+        lineToIntersectionClone.Remove(key);
+        return key;
     }
 
-    void OnDrawGizmos()
+    int NewTriangle((int, int) key, List<(int, int)> lines,
+                    Dictionary<(int, int), Vector3> lineToIntersectionClone)
     {
-        Gizmos.color = Color.red;
-        var radius = 0.002f;
+        List<int> lst;
+        var trigInd = -1;
 
-        foreach (var vert in points)
-            Gizmos.DrawWireSphere(transform.TransformPoint(vert), radius);
-
-        for (int i = 0; i < (points.Count - 1); i++)
+        if (lineToTrig.TryGetValue(key, out lst))
         {
-            Gizmos.DrawLine(points[i], points[i+1]);
-        }
-        if (points.Count - 1 >= 0)
-            Gizmos.DrawLine(points[points.Count - 1], points[0]);
-    }
-
-    int NewTriangle((int, int) key)
-    {
-        List<int> val;
-        if (lineToTrig.TryGetValue(key, out val))
-        {
-            Debug.Assert(val.Count != 0);
-            var triangle = val[0];
-            val.RemoveAt(0);
-            if (val.Count == 0)
-            {
+            trigInd = lst[0];
+            if (lst.Count == 1)
                 lineToTrig.Remove(key);
-            }
-            return triangle;
+            else
+                lst.RemoveAt(0);
         }
-        return -1;
+        else
+        {
+            key = SetKey(FindClosestPoint(key), lines, lineToIntersectionClone);
+
+            if (lineToTrig.TryGetValue(key, out lst))
+            {
+                trigInd = lst[0];
+                if (lst.Count == 1)
+                    lineToTrig.Remove(key);
+                else
+                    lst.RemoveAt(0);
+            }
+            else
+            {
+                Debug.LogError("Shold be unreachable, new key don't have any " +
+                               "connected triangles left, it was triangleless already");
+                throw new InvalidOperationException();
+            }
+            // Debug.LogError("Shold be unreachable, new key don't have any connected triangles left");
+        }
+
+        return trigInd;
     }
 
     (int, int) FindClosestPoint((int, int) key)
