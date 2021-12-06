@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using static System.Math;
-using static System.Diagnostics.Debug;
 using System;
 
 public class SliceScript : MonoBehaviour
@@ -14,10 +13,13 @@ public class SliceScript : MonoBehaviour
     [SerializeField]
     List<GameObject> slicees;
 
-    Dictionary<(int, int), List<int>> lineToTrig;
-    Dictionary<(int, int), Vector3> lineToIntersection;
+    Dictionary<(int, int), List<int>> lineToTrig = new Dictionary<(int, int), List<int>>();
+    Dictionary<(int, int), Vector3> lineToIntersection = new Dictionary<(int, int), Vector3>();
 
     float[] vertexValues;
+
+    [SerializeField]
+    bool updated = true;
 
     static Dictionary<int, int> sideToInd = new Dictionary<int, int>
     {
@@ -35,6 +37,11 @@ public class SliceScript : MonoBehaviour
         if (Input.GetKeyDown("space"))
         {
             Slice();
+        }
+        else if (Input.GetKeyDown(KeyCode.N))
+        {
+            if (updated)
+                updated = false;
         }
     }
 
@@ -195,10 +202,10 @@ public class SliceScript : MonoBehaviour
         (succ, vec) = CachedLinePlaneIntersectionByIndex(mesh.vertices, i2, i3);
         if (succ) { points.Add(vec); indices.Add(2); }
 
-        Assert(points.Count == 2);
+        Debug.Assert(points.Count == 2);
         var (point1, point2) = (points[0], points[1]);
 
-        Assert(indices.Count == 2);
+        Debug.Assert(indices.Count == 2);
         var (index1, index2) = (indices[0], indices[1]);
 
         if (index2 < index1)
@@ -302,24 +309,32 @@ public class SliceScript : MonoBehaviour
 
     void AddIntercestion(Mesh mesh, ChangeableMesh cMesh1, ChangeableMesh cMesh2)
     {
-        var orderedIntersections = new Dictionary<(int, int), Vector3>(lineToIntersection.Count);
+        orderedIntersections = lineToIntersection.ToDictionary(
+            entry => entry.Key, entry => entry.Value);
+        // new Dictionary<(int, int), Vector3>(lineToIntersection.Count);
 
-        var pair = lineToIntersection.ElementAt(0);
-        var key = pair.Key;
-        var val = pair.Value;
+        lines = new List<(int, int)>();
+
+        pair = lineToIntersection.ElementAt(0);
+        key = pair.Key;
+        val = pair.Value;
+
+        lines.Add(key);
+        orderedIntersections.Remove(key);
+
         /*orderedIntersections.Add(key, pair.Value);*/
         // var visitedTriangles = new HashSet<int>();
 
         // (int, int) key;
 
         // var cnt = lineToIntersection.Count;
-        while (true)  // (orderedIntersections.Count != cnt)
+        while (false)  // (orderedIntersections.Count != cnt)
         {
             var trigInd = NewTriangle(key);
             if (trigInd == -1)
             {
-                trigInd = NewTriangle(FindClosestPoint(val, key));
-                Assert(trigInd != -1);
+                trigInd = NewTriangle(FindClosestPoint(key));
+                Debug.Assert(trigInd != -1);
                 Debug.Log(trigInd);
             }
 
@@ -346,13 +361,20 @@ public class SliceScript : MonoBehaviour
             if (lineToIntersection.Count == 0)  // (orderedIntersections.Count == cnt)
                 break;
 
-            // Assert(added == 0 || added == 1);
+            // Debug.Assert(added == 0 || added == 1);
             /*if (added == 0)
             {
                 FindClosestPoint(val)
             }*/
 
+            // идём через соседние треугольники
+            // возможно удаляем отрезки из lineToIntersection
+            // когда нет ближнего треугольника, который пересечен,
+            // то находим ближайшёю точку пересечения и
+            // продолжаем из неё
         }
+
+        _mesh = mesh;
 
         points = new List<Vector3>(orderedIntersections.Count);
         foreach (var _pair in orderedIntersections)
@@ -361,12 +383,240 @@ public class SliceScript : MonoBehaviour
         }
     }
 
+    Dictionary<(int, int), Vector3> orderedIntersections = new Dictionary<(int, int), Vector3>();
+    List<(int, int)> lines;
+
+    KeyValuePair<(int, int), Vector3> pair;
+    (int, int) key;
+    Vector3 val;
+
+    Mesh _mesh;
+
+    Vector3 v1;
+    Vector3 v2;
+    Vector3 v3;
+
+    Vector3 lastIntr;
+
+    List<Vector3> first = new List<Vector3>();
+    List<Vector3> second = new List<Vector3>();
+    List<Vector3> third = new List<Vector3>();
+
     void OnDrawGizmos()
     {
         Gizmos.color = Color.red;
-        var radius = 0.1f;
-        foreach (var vert in points)
-            Gizmos.DrawWireSphere(transform.TransformPoint(vert), radius);
+        var radius = 0.01f;
+
+        var mesh = _mesh;
+
+        List<int> lst;
+        int trigInd = -1;
+        if (!updated && orderedIntersections.Count != 0)
+        {
+            first = new List<Vector3>();
+            second = new List<Vector3>();
+            third = new List<Vector3>();
+
+            // get trigInd
+            trigInd = -1;
+            if (lineToTrig.TryGetValue(key, out lst))
+            {
+                trigInd = lst[0];
+                if (lst.Count == 1)
+                    lineToTrig.Remove(key);
+                else
+                    lst.RemoveAt(0);
+            }
+            else
+            {
+                key = FindClosestPoint(key);
+                lines.Add(key);
+
+                third.Add(mesh.vertices[key.Item1] + slicees[0].transform.position);
+                third.Add(mesh.vertices[key.Item2] + slicees[0].transform.position);
+
+                /*Vector3 out_lastIntr;
+                if (orderedIntersections.TryGetValue(key, out out_lastIntr))
+                {
+                    lastIntr = out_lastIntr + slicees[0].transform.position;
+                }
+                Gizmos.DrawWireSphere(transform.TransformPoint(lastIntr), radius);*/
+
+                orderedIntersections.Remove(key);
+
+                if (lineToTrig.TryGetValue(key, out lst))
+                {
+                    trigInd = lst[0];
+                    if (lst.Count == 1)
+                        lineToTrig.Remove(key);
+                    else
+                        lst.RemoveAt(0);
+                }
+                else
+                {
+                    /*Debug.LogError("Shold be unreachable, new key don't have any " +
+                                   "connected triangles left, it was triangleless already");*/
+                    // throw new InvalidOperationException();
+                    return;
+                }
+                // Debug.LogError("Shold be unreachable, new key don't have any connected triangles left");
+            }
+
+            if (trigInd == -1)
+            {
+                Debug.LogError("Shold be unreachable, trigInd wasn't set");
+                throw new InvalidOperationException();
+            }
+
+            third.Add(mesh.vertices[key.Item1] + slicees[0].transform.position);
+            third.Add(mesh.vertices[key.Item2] + slicees[0].transform.position);
+
+            // get indices
+            var i1 = mesh.triangles[trigInd + 0];
+            var i2 = mesh.triangles[trigInd + 1];
+            var i3 = mesh.triangles[trigInd + 2];
+
+            (int, int)[] keys = { Sorted(i1, i2), Sorted(i1, i3), Sorted(i2, i3) };
+
+            // gather new key
+            var gathered = false;
+            foreach (var potentialKey in keys)
+            {
+                if (orderedIntersections.ContainsKey(potentialKey))
+                {
+                    if (gathered)
+                    {
+                        Debug.LogError("Second key in the triangle");
+                    }
+                    else
+                    {
+                        key = potentialKey;
+                        lines.Add(key);
+                        orderedIntersections.Remove(key);
+                        gathered = true;
+                    }
+                }
+            }
+
+            // if (!gathered) should be roselved on the next stage when getting trigInd
+            /*if (!gathered)
+            {
+                Debug.LogError("Shold be unreachable, no new key gathered");
+                throw new InvalidOperationException();
+            }*/
+
+            // debug
+
+            v1 = mesh.vertices[i1] + slicees[0].transform.position;
+            v2 = mesh.vertices[i2] + slicees[0].transform.position;
+            v3 = mesh.vertices[i3] + slicees[0].transform.position;
+
+            first.Add(v1);
+            first.Add(v1);
+            first.Add(v2);
+            second.Add(v2);
+            second.Add(v3);
+            second.Add(v3);
+
+            /*var trigInd = NewTriangle(key);
+            if (trigInd == -1)
+            {
+                trigInd = NewTriangle(FindClosestPoint(val, key));
+                Debug.Assert(trigInd != -1);
+                Debug.Log(trigInd);
+            }
+
+            var i1 = mesh.triangles[trigInd + 0];
+            var i2 = mesh.triangles[trigInd + 1];
+            var i3 = mesh.triangles[trigInd + 2];
+
+            v1 = mesh.vertices[i1] + slicees[0].transform.position;
+            v2 = mesh.vertices[i2] + slicees[0].transform.position;
+            v3 = mesh.vertices[i3] + slicees[0].transform.position;
+
+            (int, int)[] keys = { Sorted(i1, i2), Sorted(i1, i3), Sorted(i2, i3) };
+
+            var added = false;
+            foreach (var _key in keys)
+            {
+                key = _key;
+                //  !orderedIntersections.ContainsKey(key) &&
+                if (lineToIntersection.TryGetValue(key, out val))
+                {
+                    orderedIntersections.Add(key, val);
+                    lineToIntersection.Remove(key);
+                    added = true;
+                    break;
+                }
+            }*/
+
+            /*foreach (var item in lineToTrig.Values)
+            {
+                foreach (var trigInd in item)
+                {
+                    var i1 = mesh.triangles[trigInd + 0];
+                    var i2 = mesh.triangles[trigInd + 1];
+                    var i3 = mesh.triangles[trigInd + 2];
+
+                    var v1 = mesh.vertices[i1];
+                    var v2 = mesh.vertices[i2];
+                    var v3 = mesh.vertices[i3];
+
+                    Gizmos.DrawLine(v1, v2);
+                    Gizmos.DrawLine(v1, v3);
+                    Gizmos.DrawLine(v2, v3);
+
+                }
+            }*/
+        }
+        else if (!updated && orderedIntersections.Count == 0)
+        {
+            Debug.Log("Finished");
+        }
+        updated = true;
+
+        for (int i = 0; i < first.Count; i++)
+        {
+            Gizmos.DrawLine(first[i], second[i]);
+        }
+
+        foreach (var item in third)
+        {
+            Gizmos.DrawWireSphere(item, radius);
+        }
+
+        var c = Gizmos.color;
+        Gizmos.color = Color.blue;
+
+        List<int> _i;
+        if (lineToTrig.TryGetValue(key, out _i))
+        //foreach (var item in lineToTrig.Values)
+        {
+            foreach (var i in _i)
+            {
+                var i1 = mesh.triangles[i + 0];
+                var i2 = mesh.triangles[i + 1];
+                var i3 = mesh.triangles[i + 2];
+
+                var v1 = mesh.vertices[i1] + slicees[0].transform.position;
+                var v2 = mesh.vertices[i2] + slicees[0].transform.position;
+                var v3 = mesh.vertices[i3] + slicees[0].transform.position;
+
+                Gizmos.DrawLine(v1, v2);
+                Gizmos.DrawLine(v1, v3);
+                Gizmos.DrawLine(v2, v3);
+
+            }
+        }
+
+        Gizmos.color = c;
+
+        /*Gizmos.DrawLine(v1, v2);
+        Gizmos.DrawLine(v1, v3);
+        Gizmos.DrawLine(v2, v3);*/
+
+        /*foreach (var vert in points)
+            Gizmos.DrawWireSphere(transform.TransformPoint(vert), radius);*/
     }
 
     int NewTriangle((int, int) key)
@@ -374,7 +624,7 @@ public class SliceScript : MonoBehaviour
         List<int> val;
         if (lineToTrig.TryGetValue(key, out val))
         {
-            Assert(val.Count != 0);
+            Debug.Assert(val.Count != 0);
             var triangle = val[0];
             val.RemoveAt(0);
             if (val.Count == 0)
@@ -386,21 +636,38 @@ public class SliceScript : MonoBehaviour
         return -1;
     }
 
-    (int, int) FindClosestPoint(Vector3 point, (int, int) key)
+    (int, int) FindClosestPoint((int, int) key)
     {
         var closest = (-1, -1);
+        if (lineToIntersection.Count < 2)
+        {
+            Debug.LogError("lineToIntersection don't have enough elements (at least two)");
+            return closest;
+        }
 
-        if (lineToIntersection.Count > 0) {
-            var dist = Double.PositiveInfinity;
+        var point = lineToIntersection[key];
+        // XXX: key should be in lineToIntersection, but could not be
+        var dist = float.PositiveInfinity;
+        float tmpDist;
 
-            foreach (var pair in lineToIntersection)
+        foreach (var pair in lineToIntersection)
+        {
+            var tmpKey = pair.Key;  // Sorted(pair.Key.Item1, pair.Key.Item2);
+            if (tmpKey != key)
             {
-                if (Vector3.Distance(point, pair.Value) < dist)
+                tmpDist = Vector3.Distance(point, pair.Value);
+                if (tmpDist < dist)
                 {
-                    if (pair.Key != key)
-                        closest = pair.Key;
+                    closest = tmpKey;
+                    dist = tmpDist;
                 }
             }
+        }
+
+        if (closest == (-1, -1))
+        {
+            Debug.LogError("Shold be unreachable, no closest isn't set");
+            throw new InvalidOperationException();
         }
 
         return closest;
@@ -409,7 +676,7 @@ public class SliceScript : MonoBehaviour
 
     (bool, Vector3) CachedLinePlaneIntersectionByIndex(Vector3[] vertices, int i1, int i2)
     {
-        var key = (i1, i2);
+        var key = Sorted(i1, i2);
         Vector3 val;
 
         if (!lineToIntersection.TryGetValue(key, out val))
