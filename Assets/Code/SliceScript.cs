@@ -321,8 +321,6 @@ public class SliceScript : MonoBehaviour
                     else
                     {
                         key = SetKey(potentialKey, lines, lineToIntersectionClone);
-                        lines.Add(key);
-                        lineToIntersectionClone.Remove(key);
                         gathered = true;
                     }
                 }
@@ -352,24 +350,52 @@ public class SliceScript : MonoBehaviour
 
         // create cross-section mesh
 
+        string ss = "";
+        foreach (var p in vertices)
+        {
+            ss += "(" + p.x.ToString() + ", " +
+                        p.y.ToString() + ", " +
+                        p.y.ToString() + "), ";
+        }
+        
+        Debug.Log(ss);
+
         // Use the triangulator to get indices for creating triangles
-        Triangulator tr = new Triangulator(points2d.ToArray());
-        int[] indices = tr.Triangulate();
+        List<int> _indices = new List<int>();
+        var r = Triangulator.Triangulate(points2d, _indices);
+        if (!r)
+            Debug.LogError("Error");
+
+        int[] indices = _indices.ToArray();
+
+        /*var t = new Triangulator1(points2d.ToArray());
+        int[] indices = t.Triangulate();*/
+
+        //int[] indices = Triangulator3.Triangulate(points2d.ToArray());
+
+        /*var tr = Triangulator2.TriangulateConcavePolygon(vertices);
+        int[] indices = new int[tr.Count*3];
+        for (int i = 0; i < tr.Count; i++)
+        {
+            indices[i * 3 + 0] = tr[i].v1.index;
+            indices[i * 3 + 1] = tr[i].v2.index;
+            indices[i * 3 + 2] = tr[i].v3.index;
+        }*/
 
         // Create the Vector3 vertices
-        Vector3[] vertices2d = new Vector3[points2d.Count];
+        /*Vector3[] vertices2d = new Vector3[points2d.Count];
         for (int i = 0; i < vertices2d.Length; i++)
         {
             vertices2d[i] = new Vector3(points2d[i].x, points2d[i].y, 0);
-        }
+        }*/
 
-        points = vertices2d.ToList();
+        // points = vertices2d.ToList();
 
-        /*points = new List<Vector3>(lines.Count);
+        points = new List<Vector3>(lines.Count);
         foreach (var line in lines)
         {
             points.Add(lineToIntersection[line] + slicees[0].transform.position);
-        }*/
+        }
 
 
         /*cMesh1.vertices.AddRange(vertices);
@@ -390,11 +416,18 @@ public class SliceScript : MonoBehaviour
         msh.RecalculateBounds();
 
         // Set up game object with mesh;
-        var go1 = new GameObject("gg");
-        go1.AddComponent(typeof(MeshRenderer));
-        MeshFilter filter = go1.AddComponent(typeof(MeshFilter)) as MeshFilter;
+        go = new GameObject("gg");
+        go.transform.position = slicees[0].transform.position;
+        go.AddComponent(typeof(MeshRenderer));
+        MeshFilter filter = go.AddComponent(typeof(MeshFilter)) as MeshFilter;
         filter.mesh = msh;
     }
+
+    /*
+(0,6),(0,0),(3,0),(4,1),(6,1),(8,0),(12,0),(13,2),(8,2),(8,4),(11,4),(11,6),(6,6),(4,3),(2,6)
+     */
+
+    GameObject go = null;
 
     List<Vector3> points = new List<Vector3>();
 
@@ -412,6 +445,21 @@ public class SliceScript : MonoBehaviour
         }
         if (points.Count - 1 >= 0)
             Gizmos.DrawLine(points[points.Count - 1], points[0]);
+
+        if (go != null)
+        {
+            var mesh = go.GetComponent<MeshFilter>().mesh;
+
+            for (int i = 0; i < mesh.triangles.Length; i += 3)
+            {
+                var v1 = mesh.vertices[mesh.triangles[i + 0]] + go.transform.position;
+                var v2 = mesh.vertices[mesh.triangles[i + 1]] + go.transform.position;
+                var v3 = mesh.vertices[mesh.triangles[i + 2]] + go.transform.position;
+                Gizmos.DrawLine(v1, v2);
+                Gizmos.DrawLine(v1, v3);
+                Gizmos.DrawLine(v2, v3);
+            }
+        }
     }
 
     (int, int) SetKey((int, int) key, List<(int, int)> lines,
