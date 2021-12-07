@@ -18,9 +18,6 @@ public class SliceScript : MonoBehaviour
 
     float[] vertexValues;
 
-    [SerializeField]
-    bool updated = true;
-
     static Dictionary<int, int> sideToInd = new Dictionary<int, int>
     {
         {3, 1},  // 1, 2 -> 1
@@ -37,11 +34,6 @@ public class SliceScript : MonoBehaviour
         if (Input.GetKeyDown("space"))
         {
             Slice();
-        }
-        else if (Input.GetKeyDown(KeyCode.N))
-        {
-            if (updated)
-                updated = false;
         }
     }
 
@@ -99,35 +91,19 @@ public class SliceScript : MonoBehaviour
 
     (Mesh, Mesh) SliceMesh(Mesh mesh, Transform meshTransform)
     {
-        // FillLineToTrig(mesh);
-
         lineToIntersection = new Dictionary<(int, int), Vector3>();
 
-        var normal = Vector3.Cross(
-            meshTransform.InverseTransformVector(slicer.up),
-            meshTransform.InverseTransformVector(slicer.right));
+        var normal = slicer.forward;
+        //meshTransform.InverseTransformVector(slicer.forward);
+        /*Vector3.Cross(
+        meshTransform.InverseTransformVector(slicer.up),
+        meshTransform.InverseTransformVector(slicer.right));*/
         var planePoint = meshTransform.InverseTransformPoint(slicer.position);
 
         CaclulateVetrexValues(normal, planePoint, mesh.vertices);
 
         return CreateMeshes(mesh);
     }
-
-
-    /*void FillLineToTrig(Mesh mesh)
-    {
-        lineToTrig = new Dictionary<(int, int), List<int>>();
-
-        for (int ind = 0; ind < mesh.triangles.Length; ind += 3)
-        {
-            var i1 = mesh.triangles[ind + 0];
-            var i2 = mesh.triangles[ind + 1];
-            var i3 = mesh.triangles[ind + 2];
-            AddToLineToTrig(Sorted(i1, i2), ind);
-            AddToLineToTrig(Sorted(i1, i3), ind);
-            AddToLineToTrig(Sorted(i2, i3), ind);
-        }
-    }*/
 
     void CaclulateVetrexValues(Vector3 normal, Vector3 planePoint, Vector3[] vertices)
     {
@@ -305,6 +281,7 @@ public class SliceScript : MonoBehaviour
         return (Min(a, b), Max(a, b));
     }
 
+
     void AddIntercestion(Mesh mesh, ChangeableMesh cMesh1, ChangeableMesh cMesh2)
     {
         var lineToIntersectionClone = lineToIntersection.ToDictionary(
@@ -357,17 +334,84 @@ public class SliceScript : MonoBehaviour
                 Debug.LogError("Shold be unreachable, no new key gathered");
                 throw new InvalidOperationException();
             }*/
+
+
         }
 
         // world Vector3 -> plane Vector2
-
+        var points2d = new List<Vector2>(lines.Count);
+        var vertices = new List<Vector3>(lines.Count);
+        foreach (var line in lines)
+        {
+            var point = lineToIntersection[line];
+            points2d.Add(new Vector2(
+                Vector3.Dot(point, slicer.right),
+                Vector3.Dot(point, slicer.up)));
+            vertices.Add(point);
+        }
 
         // create cross-section mesh
-        var points = new List<Vector3>(lines.Count);
+
+        // Use the triangulator to get indices for creating triangles
+        Triangulator tr = new Triangulator(points2d.ToArray());
+        int[] indices = tr.Triangulate();
+
+        // Create the Vector3 vertices
+        Vector3[] vertices2d = new Vector3[points2d.Count];
+        for (int i = 0; i < vertices2d.Length; i++)
+        {
+            vertices2d[i] = new Vector3(points2d[i].x, points2d[i].y, 0);
+        }
+
+        points = vertices2d.ToList();
+
+        /*points = new List<Vector3>(lines.Count);
         foreach (var line in lines)
         {
             points.Add(lineToIntersection[line] + slicees[0].transform.position);
+        }*/
+
+
+        /*cMesh1.vertices.AddRange(vertices);
+
+        var baseInd = cMesh1.vertices.Count;
+        foreach (var item in indices)
+        {
+            cMesh1.triangles.Add(item + baseInd - 1);
+        }*/
+
+        // cMesh1.triangles.AddRange(indices);
+
+        // Create the mesh
+        Mesh msh = new Mesh();
+        msh.vertices = vertices.ToArray();
+        msh.triangles = indices;
+        msh.RecalculateNormals();
+        msh.RecalculateBounds();
+
+        // Set up game object with mesh;
+        var go1 = new GameObject("gg");
+        go1.AddComponent(typeof(MeshRenderer));
+        MeshFilter filter = go1.AddComponent(typeof(MeshFilter)) as MeshFilter;
+        filter.mesh = msh;
+    }
+
+    List<Vector3> points = new List<Vector3>();
+
+    void OnDrawGizmos()
+    {
+        Gizmos.color = Color.red;
+        var radius = 0.002f;
+
+        foreach (var vert in points)
+            Gizmos.DrawWireSphere(transform.TransformPoint(vert), radius);
+
+        for (int i = 0; i < (points.Count - 1); i++)
+        {
+            Gizmos.DrawLine(points[i], points[i + 1]);
         }
+        if (points.Count - 1 >= 0)
+            Gizmos.DrawLine(points[points.Count - 1], points[0]);
     }
 
     (int, int) SetKey((int, int) key, List<(int, int)> lines,
@@ -394,7 +438,8 @@ public class SliceScript : MonoBehaviour
         }
         else
         {
-            key = SetKey(FindClosestPoint(key), lines, lineToIntersectionClone);
+            key = SetKey(FindClosestPoint(key, lineToIntersectionClone),
+                         lines, lineToIntersectionClone);
 
             if (lineToTrig.TryGetValue(key, out lst))
             {
@@ -416,23 +461,23 @@ public class SliceScript : MonoBehaviour
         return trigInd;
     }
 
-    (int, int) FindClosestPoint((int, int) key)
+    (int, int) FindClosestPoint((int, int) key, Dictionary<(int, int), Vector3> lineToIntersectionClone)
     {
         var closest = (-1, -1);
-        if (lineToIntersection.Count < 2)
+        if (lineToIntersectionClone.Count < 1)
         {
-            Debug.LogError("lineToIntersection don't have enough elements (at least two)");
+            Debug.LogError("lineToIntersection don't have enough elements (at least one)");
             return closest;
         }
 
-        var point = lineToIntersection[key];
         // XXX: key should be in lineToIntersection, but could not be
+        var point = lineToIntersection[key];
+
         var dist = float.PositiveInfinity;
         float tmpDist;
 
-        foreach (var pair in lineToIntersection)
+        foreach (var pair in lineToIntersectionClone)
         {
-            // var tmpKey = pair.Key;  // Sorted(pair.Key.Item1, pair.Key.Item2);
             if (pair.Key != key)
             {
                 tmpDist = Vector3.Distance(point, pair.Value);
@@ -446,8 +491,7 @@ public class SliceScript : MonoBehaviour
 
         if (closest == (-1, -1))
         {
-            Debug.LogError("Shold be unreachable, no closest isn't set");
-            throw new InvalidOperationException();
+            Debug.LogError("Closest isn't set in the end");
         }
 
         return closest;
