@@ -24,6 +24,8 @@ public class ChangeableMesh
         mesh.vertices = vertices.ToArray();
         mesh.triangles = triangles.ToArray();
         mesh.normals = normals.ToArray();
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
 
         return mesh;
     }

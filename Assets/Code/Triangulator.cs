@@ -48,12 +48,12 @@ class Triangulator
         Vector2 B = contour[V[v]];
         Vector2 C = contour[V[w]];
 
-        float smallEpsilon = 0.1f;
+        /*float smallEpsilon = 0.1f;
         if (Mathf.Epsilon > (((B.x - A.x) * (C.y - A.y)) - ((B.y - A.y) * (C.x - A.x))) &&
             Vector2.SqrMagnitude(A - B) > smallEpsilon &&
             Vector2.SqrMagnitude(A - C) > smallEpsilon &&
             Vector2.SqrMagnitude(B - C) > smallEpsilon)
-            return false;
+            return false;*/
         // if (Mathf.Epsilon > (((Bx - Ax) * (Cy - Ay)) - ((By - Ay) * (Cx - Ax)))) return false;
 
         for (p = 0; p < n; p++)
@@ -74,7 +74,10 @@ class Triangulator
 
         int n = contour.Count;
         if (n < 3)
+        {
+            Debug.Log("ERROR - less than 3 points");
             return false;
+        }
 
         int[] V = new int[n];
 
@@ -95,6 +98,7 @@ class Triangulator
             /* if we loop, it is probably a non-simple polygon */
             if (0 >= (count--))
             {
+                Debug.Log("ERROR - probable bad polygon!");
                 //** Triangulate: ERROR - probable bad polygon!
                 return false;
             }
