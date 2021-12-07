@@ -18,6 +18,8 @@ public class SliceScript : MonoBehaviour
 
     float[] vertexValues;
 
+    bool thereIsAnIntersection = false;
+
     static Dictionary<int, int> sideToInd = new Dictionary<int, int>
     {
         {3, 1},  // 1, 2 -> 1
@@ -50,7 +52,8 @@ public class SliceScript : MonoBehaviour
             if (mf != null && t != null)
             {
                 SliceGameObject(obj, t, mf.mesh);
-                indicesToRemove.Add(i);
+                if (thereIsAnIntersection)
+                    indicesToRemove.Add(i);
             }
         }
 
@@ -63,30 +66,31 @@ public class SliceScript : MonoBehaviour
     void SliceGameObject(GameObject obj, Transform objTransform, Mesh objMesh)
     {
         var (mesh1, mesh2) = SliceMesh(objMesh, objTransform);
-        var t = objTransform.parent;
-        GameObject obj1, obj2;
 
-        if (t == null)
+        if (thereIsAnIntersection)
         {
-            obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity);
+            var t = objTransform.parent;
+            GameObject obj1, obj2;
+
+            if (t == null)
+            {
+                obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity);
+                obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity);
+            }
+            else
+            {
+                obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
+                obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
+            }
+
             obj1.GetComponent<MeshFilter>().mesh = mesh1;
-
-            obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity);
             obj2.GetComponent<MeshFilter>().mesh = mesh2;
+
+            slicees.Add(obj1);
+            slicees.Add(obj2);
+
+            Destroy(obj);
         }
-        else
-        {
-            obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
-            obj1.GetComponent<MeshFilter>().mesh = mesh1;
-
-            obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
-            obj2.GetComponent<MeshFilter>().mesh = mesh2;
-        }
-
-        slicees.Add(obj1);
-        slicees.Add(obj2);
-
-        Destroy(obj);
     }
 
     (Mesh, Mesh) SliceMesh(Mesh mesh, Transform meshTransform)
@@ -284,6 +288,15 @@ public class SliceScript : MonoBehaviour
 
     void AddIntercestion(Mesh mesh, ChangeableMesh cMesh1, ChangeableMesh cMesh2)
     {
+        if (lineToIntersection.Count == 0)
+        {
+            Debug.Log("No intersection");
+            thereIsAnIntersection = false;
+            return;
+        }
+
+        thereIsAnIntersection = true;
+
         var lineToIntersectionClone = lineToIntersection.ToDictionary(
             entry => entry.Key, entry => entry.Value);
 
@@ -348,18 +361,6 @@ public class SliceScript : MonoBehaviour
             vertices.Add(point);
         }
 
-        // create cross-section mesh
-
-        string ss = "";
-        foreach (var p in vertices)
-        {
-            ss += "(" + p.x.ToString() + ", " +
-                        p.y.ToString() + ", " +
-                        p.y.ToString() + "), ";
-        }
-        
-        Debug.Log(ss);
-
         // Use the triangulator to get indices for creating triangles
         List<int> _indices = new List<int>();
         var r = Triangulator.Triangulate(points2d, _indices);
@@ -368,98 +369,20 @@ public class SliceScript : MonoBehaviour
 
         int[] indices = _indices.ToArray();
 
-        /*var t = new Triangulator1(points2d.ToArray());
-        int[] indices = t.Triangulate();*/
-
-        //int[] indices = Triangulator3.Triangulate(points2d.ToArray());
-
-        /*var tr = Triangulator2.TriangulateConcavePolygon(vertices);
-        int[] indices = new int[tr.Count*3];
-        for (int i = 0; i < tr.Count; i++)
-        {
-            indices[i * 3 + 0] = tr[i].v1.index;
-            indices[i * 3 + 1] = tr[i].v2.index;
-            indices[i * 3 + 2] = tr[i].v3.index;
-        }*/
-
-        // Create the Vector3 vertices
-        /*Vector3[] vertices2d = new Vector3[points2d.Count];
-        for (int i = 0; i < vertices2d.Length; i++)
-        {
-            vertices2d[i] = new Vector3(points2d[i].x, points2d[i].y, 0);
-        }*/
-
-        // points = vertices2d.ToList();
-
-        points = new List<Vector3>(lines.Count);
-        foreach (var line in lines)
-        {
-            points.Add(lineToIntersection[line] + slicees[0].transform.position);
-        }
-
-
-        /*cMesh1.vertices.AddRange(vertices);
-
-        var baseInd = cMesh1.vertices.Count;
+        // add cross-section to mesh
+        var baseInd = cMesh2.vertices.Count;
         foreach (var item in indices)
         {
-            cMesh1.triangles.Add(item + baseInd - 1);
-        }*/
-
-        // cMesh1.triangles.AddRange(indices);
-
-        // Create the mesh
-        Mesh msh = new Mesh();
-        msh.vertices = vertices.ToArray();
-        msh.triangles = indices;
-        msh.RecalculateNormals();
-        msh.RecalculateBounds();
-
-        // Set up game object with mesh;
-        go = new GameObject("gg");
-        go.transform.position = slicees[0].transform.position;
-        go.AddComponent(typeof(MeshRenderer));
-        MeshFilter filter = go.AddComponent(typeof(MeshFilter)) as MeshFilter;
-        filter.mesh = msh;
-    }
-
-    /*
-(0,6),(0,0),(3,0),(4,1),(6,1),(8,0),(12,0),(13,2),(8,2),(8,4),(11,4),(11,6),(6,6),(4,3),(2,6)
-     */
-
-    GameObject go = null;
-
-    List<Vector3> points = new List<Vector3>();
-
-    void OnDrawGizmos()
-    {
-        Gizmos.color = Color.red;
-        var radius = 0.002f;
-
-        foreach (var vert in points)
-            Gizmos.DrawWireSphere(transform.TransformPoint(vert), radius);
-
-        for (int i = 0; i < (points.Count - 1); i++)
-        {
-            Gizmos.DrawLine(points[i], points[i + 1]);
+            cMesh2.triangles.Add(item + baseInd);
         }
-        if (points.Count - 1 >= 0)
-            Gizmos.DrawLine(points[points.Count - 1], points[0]);
+        cMesh2.vertices.AddRange(vertices);
 
-        if (go != null)
+        baseInd = cMesh1.vertices.Count;
+        foreach (var item in indices.Reverse())
         {
-            var mesh = go.GetComponent<MeshFilter>().mesh;
-
-            for (int i = 0; i < mesh.triangles.Length; i += 3)
-            {
-                var v1 = mesh.vertices[mesh.triangles[i + 0]] + go.transform.position;
-                var v2 = mesh.vertices[mesh.triangles[i + 1]] + go.transform.position;
-                var v3 = mesh.vertices[mesh.triangles[i + 2]] + go.transform.position;
-                Gizmos.DrawLine(v1, v2);
-                Gizmos.DrawLine(v1, v3);
-                Gizmos.DrawLine(v2, v3);
-            }
+            cMesh1.triangles.Add(item + baseInd);
         }
+        cMesh1.vertices.AddRange(vertices);
     }
 
     (int, int) SetKey((int, int) key, List<(int, int)> lines,
