@@ -20,6 +20,9 @@ public class SliceScript : MonoBehaviour
 
     bool thereIsAnIntersection = false;
 
+    [SerializeField]
+    bool makingSlice = false;
+
     static Dictionary<int, int> sideToInd = new Dictionary<int, int>
     {
         {3, 1},  // 1, 2 -> 1
@@ -33,10 +36,20 @@ public class SliceScript : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown("space"))
+        /*if (Input.GetKeyDown("space"))
         {
             Slice();
+        }*/
+        if (makingSlice)
+        {
+            Slice();
+            makingSlice = false;
         }
+        else
+        {
+            return;
+        }
+
     }
 
     void Slice()
@@ -84,7 +97,9 @@ public class SliceScript : MonoBehaviour
             }
 
             obj1.GetComponent<MeshFilter>().mesh = mesh1;
+            obj1.GetComponent<MeshCollider>().sharedMesh = mesh1;
             obj2.GetComponent<MeshFilter>().mesh = mesh2;
+            obj2.GetComponent<MeshCollider>().sharedMesh = mesh2;
 
             slicees.Add(obj1);
             slicees.Add(obj2);
@@ -102,7 +117,8 @@ public class SliceScript : MonoBehaviour
         /*Vector3.Cross(
         meshTransform.InverseTransformVector(slicer.up),
         meshTransform.InverseTransformVector(slicer.right));*/
-        var planePoint = meshTransform.InverseTransformPoint(slicer.position);
+        var planePoint = //slicer.position;
+        meshTransform.InverseTransformPoint(slicer.position);
 
         CaclulateVetrexValues(normal, planePoint, mesh.vertices);
 
