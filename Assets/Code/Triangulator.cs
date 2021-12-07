@@ -5,8 +5,6 @@ using UnityEngine;
 
 class Triangulator
 {
-    public const float EPSILON = 0.0000000001f;
-
     // compute area of a contour/polygon
     public static float Area(List<Vector2> contour)
     {
@@ -23,22 +21,17 @@ class Triangulator
 
     // decide if point Px/Py is inside triangle defined by
     // (Ax,Ay) (Bx,By) (Cx,Cy)
-    public static bool InsideTriangle(
-        float Ax, float Ay,
-        float Bx, float By,
-        float Cx, float Cy,
-        float Px, float Py)
-
+    public static bool InsideTriangle(Vector2 A, Vector2 B, Vector2 C, Vector2 P)
     {
         float ax, ay, bx, by, cx, cy, apx, apy, bpx, bpy, cpx, cpy;
         float cCROSSap, bCROSScp, aCROSSbp;
 
-        ax = Cx - Bx; ay = Cy - By;
-        bx = Ax - Cx; by = Ay - Cy;
-        cx = Bx - Ax; cy = By - Ay;
-        apx = Px - Ax; apy = Py - Ay;
-        bpx = Px - Bx; bpy = Py - By;
-        cpx = Px - Cx; cpy = Py - Cy;
+        ax = C.x - B.x; ay = C.y - B.y;
+        bx = A.x - C.x; by = A.y - C.y;
+        cx = B.x - A.x; cy = B.y - A.y;
+        apx = P.x - A.x; apy = P.y - A.y;
+        bpx = P.x - B.x; bpy = P.y - B.y;
+        cpx = P.x - C.x; cpy = P.y - C.y;
 
         aCROSSbp = ax * bpy - ay * bpx;
         cCROSSap = cx * apy - cy * apx;
@@ -50,25 +43,24 @@ class Triangulator
     public static bool Snip(List<Vector2> contour, int u, int v, int w, int n, int[] V)
     {
         int p;
-        float Ax, Ay, Bx, By, Cx, Cy, Px, Py;
+        Vector2 P;
+        Vector2 A = contour[V[u]];
+        Vector2 B = contour[V[v]];
+        Vector2 C = contour[V[w]];
 
-        Ax = contour[V[u]].x;
-        Ay = contour[V[u]].y;
-
-        Bx = contour[V[v]].x;
-        By = contour[V[v]].y;
-
-        Cx = contour[V[w]].x;
-        Cy = contour[V[w]].y;
-
-        if (EPSILON > (((Bx - Ax) * (Cy - Ay)) - ((By - Ay) * (Cx - Ax)))) return false;
+        float smallEpsilon = 0.1f;
+        if (Mathf.Epsilon > (((B.x - A.x) * (C.y - A.y)) - ((B.y - A.y) * (C.x - A.x))) &&
+            Vector2.SqrMagnitude(A - B) > smallEpsilon &&
+            Vector2.SqrMagnitude(A - C) > smallEpsilon &&
+            Vector2.SqrMagnitude(B - C) > smallEpsilon)
+            return false;
+        // if (Mathf.Epsilon > (((Bx - Ax) * (Cy - Ay)) - ((By - Ay) * (Cx - Ax)))) return false;
 
         for (p = 0; p < n; p++)
         {
             if ((p == u) || (p == v) || (p == w)) continue;
-            Px = contour[V[p]].x;
-            Py = contour[V[p]].y;
-            if (InsideTriangle(Ax, Ay, Bx, By, Cx, Cy, Px, Py)) return false;
+            P = contour[V[p]];
+            if (InsideTriangle(A, B, C, P)) return false;
         }
 
         return true;
