@@ -1,6 +1,12 @@
 # MeshCutter
  Unity project where you can cut any mesh with the plane
 
-![image1](./Screenshot%202021-12-06%20221801.png)
+<div style="display:flex;">
+  <img src="samples/1.png" width="54.3%">
+  <img src="samples/2.png" width="44.8%">
+</div>
 
-![image2](./Screenshot%202021-12-06%20222544.png)
+<img src="samples/3.gif" width="99%">
+
+![](samples/4.png)
+![](samples/5.png)
