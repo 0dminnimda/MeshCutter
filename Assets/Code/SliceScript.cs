@@ -87,13 +87,13 @@ public class SliceScript : MonoBehaviour
 
             if (t == null)
             {
-                obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity);
-                obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity);
+                obj1 = Instantiate(obj, obj.transform.position, obj.transform.rotation);
+                obj2 = Instantiate(obj, obj.transform.position, obj.transform.rotation);
             }
             else
             {
-                obj1 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
-                obj2 = Instantiate(obj, obj.transform.position, Quaternion.identity, t);
+                obj1 = Instantiate(obj, obj.transform.position, obj.transform.rotation, t);
+                obj2 = Instantiate(obj, obj.transform.position, obj.transform.rotation, t);
             }
 
             obj1.GetComponent<MeshFilter>().mesh = mesh1;
