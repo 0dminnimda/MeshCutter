@@ -2,11 +2,11 @@
  Unity project where you can cut any mesh with the plane
 
 <div style="display:flex;">
-  <img src="samples/1.png" width="54.3%">
-  <img src="samples/2.png" width="44.8%">
+  <img alt="1.png" src="samples/1.png" width="54.3%">
+  <img alt="2.png" src="samples/2.png" width="44.8%">
 </div>
 
-<img src="samples/3.gif" width="99%">
+<img alt="3.gif" src="samples/3.gif" width="99%">
 
-![](samples/4.png)
-![](samples/5.png)
+![4.png](samples/4.png)
+![5.png](samples/5.png)
